@@ -1,4 +1,5 @@
-﻿//用来加载html
+﻿
+//用来加载html
 class ReflexInclude extends HTMLElement
 {
 	 // Specify observed attributes so that attributeChangedCallback will work
@@ -10,15 +11,15 @@ class ReflexInclude extends HTMLElement
 	{
 		super();
 		this.root = this.attachShadow({mode: 'open'});
-		log("reflex-include construct")
+		reflex$Log("reflex-include construct")
 	}
 	
 	connectedCallback() 
 	{
-		log("reflex-include connectd")
+		reflex$Log("reflex-include connectd")
 		if(!this.hasAttribute("src"))
 		{
-			log("Failed to get src attribute, it's no defined");
+			reflex$Log("Failed to get src attribute, it's no defined");
 			return;
 		}
 		var src = this.getAttribute("src");
@@ -32,7 +33,7 @@ class ReflexInclude extends HTMLElement
 			{
 				parent.loadHtml(error.response.data);
 			}else{
-				log(error);
+				reflex$Log(error);
 			}
 		});
 	}
@@ -55,7 +56,7 @@ class ReflexInclude extends HTMLElement
 			script.type = item.type || 'text/javascript';
 			if(item.hasAttribute('src') ) 
 			{
-				if(jsLoaded(item.src))
+				if(reflex$JsLoaded(item.src))
 				{
 					continue;
 				}
@@ -64,10 +65,11 @@ class ReflexInclude extends HTMLElement
 			}
 			script.innerHTML = item.innerHTML;
 			this.root.appendChild(script);	
-		}			
+		}
+		this.bindingContext = new Reflex$BindingContext(this.root);
 	}
 }
-customElements.define("rf-include", ReflexInclude);
+
 
 //用来计算表达式，和绑定数据到视图
 class ExpressionBinding extends Object
@@ -77,7 +79,6 @@ class ExpressionBinding extends Object
 		super();
 		this.expression = expression;
 		this.targets = [];
-		this.text="hell0 ";
 	}
 	
 	add(element, attr)
@@ -87,7 +88,7 @@ class ExpressionBinding extends Object
 	
 	apply(context)
 	{
-		var result = evalOnContext(context,[], this.expression);
+		var result = reflex$EvalOnContext(context,[], this.expression);
 		let count = this.targets.length;
 		for(let i = 0; i < count; i++)
 		{
@@ -109,173 +110,121 @@ class ExpressionBinding extends Object
 	}
 }
 
-var reflex$jsloaded = ["reflex.js"];
-var reflex$bindings = new Map();
-var reflex$viewmodel ={};
 
-recordJsLoaded();
-log("reflex begin to run");
-
-window.onload = (e) => 
+//数据绑定
+class Reflex$BindingContext extends Object
 {
-  log("loaded");
-  recordJsLoaded();
-  createBindinds();
-  reflex$AttachViewmodel();
-};
-
-function sleep(delay) {
-  var start = (new Date()).getTime();
-  while ((new Date()).getTime() - start < delay) {
-    continue;
-  }
-}
-
-function recordJsLoaded()
-{
-	let scripts = document.querySelectorAll('script');
-	for(let item of scripts)
+	constructor(element)
 	{
-		if(!item.hasAttribute("src"))
-		{
-			continue;
-		}
-		let name = item.src;
-		name = name.substring(name.lastIndexOf('/')+1);
-		if(reflex$jsloaded.indexOf(name) >= 0)
-		{
-			continue;
-		}
-		reflex$jsloaded.push(name);
+		super();
+		this.viewmodel = {};
+		this.bindings = new Map();
+		this.element = element;
+		this.createBindingAndDescent(element);
+		this.fireDatasChanged(this.viewmodel, Object.keys(this.viewmodel));
 	}
-}
-
-function recordJsLoadedByName(name)
-{
-	name = name.substring(name.lastIndexOf('/')+1);
-	if(reflex$jsloaded.indexOf(name) >= 0)
-	{
-		return;
-	}
-	reflex$jsloaded.push(name);
-}
-
-function jsLoaded(name)
-{
-	name = name.substring(name.lastIndexOf('/')+1);
-	return reflex$jsloaded.indexOf(name) >= 0;
-}
-
-function log(msg)
-{
-	let date = new Date();
-	console.log(date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds() + " " + date.getMilliseconds() + "> " +  msg);
-}
-
-function addReflexLoadTask()
-{
 	
-}
-
-function createBindinds()
-{
-	createBindingAndDescent(document.documentElement);
-}
-
-function reflex$AttachViewmodel()
-{
-	reflex$FireDatasChanged(reflex$viewmodel, Object.keys(reflex$viewmodel));
-}
-
-function createBindingAndDescent(element)
-{
-	createBindingSingle(element);
-	var children = element.childNodes;
-	for (var i = 0; i < children.length; i++) {
-	    var child = children[i];
-		createBindingAndDescent(child);
-	}
-}
-
-function createBindingSingle(element)
-{
-	let attrs = element.attributes;
-	let attrsLength = 0;
-	if(attrs)
+	
+	createBindingAndDescent(element)
 	{
-		attrsLength = attrs.length;
-	}
-	//log("create binding for:" + element.nodeName + " attrs: " + attrsLength);
-	for(let i = 0; i < attrsLength; i++)
-	{
-		createBindingAttrSingle(element, attrs[i]);
-	}
-	if(element.nodeType == Node.TEXT_NODE)
-	{
-		let innerText = element.textContent.trim();
-		if(isDynamicText(innerText))
-		{
-			bind(element, "text", innerText)
+		this.createBindingSingle(element);
+		var children = element.childNodes;
+		for (var i = 0; i < children.length; i++) {
+			var child = children[i];
+			this.createBindingAndDescent(child);
 		}
 	}
-}
-
-function createBindingAttrSingle(element, attr)
-{
-	let value = attr.nodeValue;
-	if(isDynamicText(value))
+	
+	
+	createBindingSingle(element)
 	{
-		bind(element, attr.nodeName, value);
-	}
-	else if(element.nodeName.toLowerCase() == "data")
-	{
-		reflex$viewmodel[attr.nodeName] = attr.nodeValue; 
-	}
-}
-
-function bind(element, attr, value)
-{
-	log("bind : " + attr + " to: " + value);
-	value = value.trim();
-	value = value.substring(1, value.length -1);
-	let binding = reflex$bindings.get(value);
-	if(!binding)
-	{
-		reflex$bindings.set(value, new ExpressionBinding(value));
-	}
-	binding = reflex$bindings.get(value);
-	binding.add(element, attr);
-}
-
-//通知数据发生了变化
-function reflex$FireDataChanged(context, dataName)
-{
-	for (var [key, value] of reflex$bindings) {
-		if(key.indexOf(dataName) >= 0)
+		let attrs = element.attributes;
+		let attrsLength = 0;
+		if(attrs)
 		{
-			value.apply(context);
+			attrsLength = attrs.length;
 		}
-	}
-}
-
-//通知数据发生了变化
-function reflex$FireDatasChanged(context, dataNames)
-{
-	for (var [key, value] of reflex$bindings) {
-		for(var dataName of dataNames)
+		//log("create binding for:" + element.nodeName + " attrs: " + attrsLength);
+		for(let i = 0; i < attrsLength; i++)
 		{
-			if(key.indexOf(dataName) >= 0)
+			this.createBindingAttrSingle(element, attrs[i]);
+		}
+		if(element.nodeType == Node.TEXT_NODE)
+		{
+			let innerText = element.textContent.trim();
+			if(this.isDynamicText(innerText))
 			{
-				value.apply(context);
-				continue;
+				this.bind(element, "text", innerText)
 			}
 		}
 	}
+	
+	
+	createBindingAttrSingle(element, attr)
+	{
+		let value = attr.nodeValue;
+		if(this.isDynamicText(value))
+		{
+			this.bind(element, attr.nodeName, value);
+		}
+		else if(element.nodeName.toLowerCase() == "data")
+		{
+			this.viewmodel[attr.nodeName] = attr.nodeValue; 
+		}
+	}
+	
+	isDynamicText(text)
+	{
+		text = text.trim();
+		return (text.length > 0 && text.startsWith("{") && text.endsWith("}"))
+	}
+	
+	
+	bind(element, attr, value)
+	{
+		reflex$Log("bind : " + attr + " to: " + value);
+		value = value.trim();
+		value = value.substring(1, value.length -1);
+		let binding = this.bindings.get(value);
+		if(!binding)
+		{
+			this.bindings.set(value, new ExpressionBinding(value));
+		}
+		binding = this.bindings.get(value);
+		binding.add(element, attr);
+	}
+	
+
+	//通知数据发生了变化
+	fireDataChanged(context, dataName)
+	{
+		for (var [key, value] of this.bindings) {
+			if(key.indexOf(dataName) >= 0)
+			{
+				value.apply(context);
+			}
+		}
+	}
+
+	//通知数据发生了变化
+	fireDatasChanged(context, dataNames)
+	{
+		for (var [key, value] of this.bindings) {
+			for(var dataName of dataNames)
+			{
+				if(key.indexOf(dataName) >= 0)
+				{
+					value.apply(context);
+					continue;
+				}
+			}
+		}
+	}
+
 }
 
-
 //读取context上的值来计算表达式的值。如果考虑性能问题，可以指定props的值，否则把context上所有的属性都声明一遍。
-function evalOnContext(context, props, expression)
+function reflex$EvalOnContext(context, props, expression)
 {
 	if(props.length == 0)
 	{
@@ -294,8 +243,68 @@ function evalOnContext(context, props, expression)
 	}
 }
 
-function isDynamicText(text)
-{
-	text = text.trim();
-	return (text.length > 0 && text.startsWith("{") && text.endsWith("}"))
+function sleep(delay) {
+  var start = (new Date()).getTime();
+  while ((new Date()).getTime() - start < delay) {
+    continue;
+  }
 }
+
+function reflex$recordJsLoaded()
+{
+	let scripts = document.querySelectorAll('script');
+	for(let item of scripts)
+	{
+		if(!item.hasAttribute("src"))
+		{
+			continue;
+		}
+		let name = item.src;
+		name = name.substring(name.lastIndexOf('/')+1);
+		if(reflex$jsloaded.indexOf(name) >= 0)
+		{
+			continue;
+		}
+		reflex$jsloaded.push(name);
+	}
+}
+
+function reflex$recordJsLoadedByName(name)
+{
+	name = name.substring(name.lastIndexOf('/')+1);
+	if(reflex$jsloaded.indexOf(name) >= 0)
+	{
+		return;
+	}
+	reflex$jsloaded.push(name);
+}
+
+function reflex$JsLoaded(name)
+{
+	name = name.substring(name.lastIndexOf('/')+1);
+	return reflex$jsloaded.indexOf(name) >= 0;
+}
+
+function reflex$Log(msg)
+{
+	let date = new Date();
+	console.log(date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds() + " " + date.getMilliseconds() + "> " +  msg);
+}
+
+customElements.define("rf-include", ReflexInclude);
+
+var reflex$jsloaded = ["reflex.js"];
+var reflex$BindingContext;
+reflex$recordJsLoaded();
+reflex$Log("reflex begin to run");
+
+window.onload = (e) => 
+{
+  reflex$Log("loaded");
+  reflex$recordJsLoaded();
+  reflex$BindingContext = new Reflex$BindingContext(document.documentElement);
+};
+
+
+
+
