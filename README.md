@@ -4,27 +4,21 @@
  在什么时候，什么地方，显示什么东西，显示成什么样子。
  
  
- 什么时候：
+ 1)什么时候：
   1，时间
   2，事件
   
   事件来自于业务逻辑，可以通过数据来驱动。
   时间可以是相对的，可以得到某个条件变为true时候的时间
   
+  最后都可以认为是条件。
+  <condition conditionname1="{state=='up'}" />
+  <condition conditionname2="{$time == $conditionname1 + 1000}" />
   
-  最后数据和条件结合，可以用来重新定义数据。(为什么不把这些直接写到代码里？而是写在ui里，因为ui有一部分自己的显示逻辑)
-   data.condition1=value1
-   data.condition2 = value2
-   
-   
-   condition1,condition2是互斥的。
-   
-   当一个条件满足了，data就使用对应的value，一直到有其他条件满足。
-   
-   条件的定义：
-     条件支持:或
-	 <condition condition1="{time=100}"/>
-  
+  2)什么地方，显示什么东西，显示成什么样子。都是数据驱动的，和条件结合，就是在不同条件下，改变数据。
+	<data text.conditionname1="hello state up"  text.conditionname2="up after 1000 ms"/>
+	
+	
   
  效应器：
    数据绑定。
