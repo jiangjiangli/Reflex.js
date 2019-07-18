@@ -106,6 +106,7 @@ class ExpressionBinding extends Object
 		return this.targets.length > 0;
 	}
 	
+	//返回true表示不需要再计算该值了。
 	applyOn(element, attr, value)
 	{
 		if(element.nodeType == Node.TEXT_NODE)
@@ -116,39 +117,24 @@ class ExpressionBinding extends Object
 		{
 			element.setAttribute(attr, value);
 		}
-		//condition
-		else if(element.context && element.type == "condition")
+		else if(element.context)
 		{
-			element.context.onCondtiionTrue(attr,element);
-			return true;
-		}
-		else if(element.context && element.type == "data")
-		{
-			element.context.changeViewModelData(attr, value);
+			//condition
+			if(element.type == "condition" && value)
+			{
+				element.context.onCondtiionTrue(attr,element);
+				return true;
+			}
+			else if(element.type == "data")
+			{
+				element.context.changeViewModelData(attr, value);
+			}
+			else if(element.type == "conditionData")
+			{
+				element.context.onConditionDataChanged(element, attr, value);
+			}
 		}
 		return false;
-	}
-}
-
-
-//条件数据,一个条件，对应多个数据
-class ConditionViewModels extends Object{
-	constructor()
-	{
-		super();
-		this.targets = [];
-	}
-	
-	//添加数据名、以及数据值
-	add(name, value)
-	{
-		
-	}
-	
-	//条件被满足了，使数据生效
-	meet()
-	{
-		
 	}
 }
 
@@ -160,9 +146,11 @@ class Reflex$BindingContext extends Object
 	{
 		super();
 		this.viewmodel = {};
-		this.conditionDatas = new Map();
 		this.bindings = new Map();
+		//{condition0:[{context:context, type:'conditionData',condition:'',dataName:'', dataValue:''},{}]};
+		this.conditionDatas = new Map();
 		this.conditions = new Map();
+		this.usingData2ConditionDataMap = new Map();
 		this.timeConditions = [];
 		this.element = element;
 		this.createBindingAndDescent(element);
@@ -185,6 +173,7 @@ class Reflex$BindingContext extends Object
 	}
 	
 	//条件为true,每个条件只能满足一次，满足后，就会被删除。
+	//conditionObject格式： {name: name, value:false, context: this, type: "condition"}
 	onCondtiionTrue(name, conditionObject)
 	{
 		let index = this.timeConditions.indexOf(name);
@@ -202,9 +191,41 @@ class Reflex$BindingContext extends Object
 			reflex$Log(" clear timer!");
 		}
 		conditionObject.value = true;
+		//如果条件为true,则检查condition data，使得生效
+		this.makeConditionDataApplied(name);
 		if(first)
 		{	
 			this.fireDatasChanged(this.viewmodel, "$" + name);
+		}
+	}
+	
+	//在当前condition下，使data.condition 生效
+	makeConditionDataApplied(name)
+	{
+		let list = this.conditionDatas.get(name);
+		if(!list)
+		{
+			return;
+		}
+		//{context:context, type:'conditionData',condition:'',dataName:'', dataValue:''}
+		let names = [];
+		for(let item of list)
+		{
+			this.viewmodel[item.dataName] = item.dataValue;
+			names.push(item.dataName);
+			this.usingData2ConditionDataMap.set(item.dataName, item.dataName + "." + name);
+		}
+	    this.fireDatasChanged(this.viewmodel, names);
+	}
+	
+	//target的格式{context:context, type:'conditionData',condition:'',dataName:'', dataValue:''}
+	onConditionDataChanged(target, nameWithCondition, newValue)
+	{
+		target.dataValue = newValue;
+		let conditionDataName = this.usingData2ConditionDataMap.get(target.dataName);
+		if(conditionDataName == nameWithCondition)
+		{
+			this.changeViewModelData(target.dataName, newValue);
 		}
 	}
 	
@@ -275,9 +296,8 @@ class Reflex$BindingContext extends Object
 		value = value.trim();
 		let isDynamic = this.isDynamicText(value);
 		let name = attr.nodeName;
-		//条件数据
 		let index = name.indexOf(".");
-		let dataOne = {context:this, type:"data"};
+		//条件数据
 		if(index > 0)
 		{
 			let condition = name.substr(index+1);
@@ -286,20 +306,25 @@ class Reflex$BindingContext extends Object
 			let datas = this.conditionDatas.get(condition);
 			if(!datas)
 			{
-				this.conditionDatas.set(value, new ExpressionBinding(value));
+				datas = [];
+				this.conditionDatas.set(condition, datas);
 			}
+			//{context:context, type:'conditionData',condition:'',dataName:'', dataValue:''}
+			let dataOne = {context:this,type:"conditionData", condition:condition, dataName: name};
+			datas.push(dataOne);
 			if(isDynamic)
 			{
+				this.bind(dataOne, attr.nodeName, value);
 			}
 			else{
-				//this.conditionViewModel[] = ;
+				dataOne.dataValue = value;
 			}
-		}
+		}//正常数据
 		else
 		{
 			if(isDynamic)
 			{
-				this.bind(dataOne, name, value);
+				this.bind( {context:this, type:"data"}, name, value);
 			}
 			else{
 				this.changeViewModelData(name, value);
