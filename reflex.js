@@ -81,11 +81,13 @@ class ExpressionBinding extends Object
 		this.targets = [];
 	}
 	
+	//添加目标对象和目标属性
 	add(element, attr)
 	{
 		this.targets.push({element:element, attr: attr});
 	}
 	
+	//返回是否还存在数据绑定
 	apply(context)
 	{
 		var result = reflex$EvalOnContext(context,[], this.expression);
@@ -93,8 +95,15 @@ class ExpressionBinding extends Object
 		for(let i = 0; i < count; i++)
 		{
 			let item = this.targets[i];
-			this.applyOn(item.element, item.attr,result);
+			//需要删除
+			if(this.applyOn(item.element, item.attr,result))
+			{
+				this.targets.splice(i, 1);
+				i--;
+				count--;
+			}
 		}
+		return this.targets.length > 0;
 	}
 	
 	applyOn(element, attr, value)
@@ -103,10 +112,43 @@ class ExpressionBinding extends Object
 		{
 			element.textContent = value;
 		}
-		else if(element.hasAttribute(attr))
+		else if(element.hasAttribute && element.hasAttribute(attr))
 		{
 			element.setAttribute(attr, value);
 		}
+		//condition
+		else if(element.context && element.type == "condition")
+		{
+			element.context.onCondtiionTrue(attr,element);
+			return true;
+		}
+		else if(element.context && element.type == "data")
+		{
+			element.context.changeViewModelData(attr, value);
+		}
+		return false;
+	}
+}
+
+
+//条件数据,一个条件，对应多个数据
+class ConditionViewModels extends Object{
+	constructor()
+	{
+		super();
+		this.targets = [];
+	}
+	
+	//添加数据名、以及数据值
+	add(name, value)
+	{
+		
+	}
+	
+	//条件被满足了，使数据生效
+	meet()
+	{
+		
 	}
 }
 
@@ -118,12 +160,53 @@ class Reflex$BindingContext extends Object
 	{
 		super();
 		this.viewmodel = {};
+		this.conditionDatas = new Map();
 		this.bindings = new Map();
+		this.conditions = new Map();
+		this.timeConditions = [];
 		this.element = element;
 		this.createBindingAndDescent(element);
+		//要启动时间,一直到所有的时间条件都满足了
+		if(this.timeConditions.length > 0)
+		{
+			this.intervalCount = 0;
+			this.intervalId = setInterval(this.updateTime, 100, this);
+			this.updateTime(this);
+		}
 		this.fireDatasChanged(this.viewmodel, Object.keys(this.viewmodel));
 	}
 	
+	//更新时间，每100ms更新一次
+	updateTime(context)
+	{
+		context.viewmodel["$time"] = 100 * context.intervalCount;
+		++context.intervalCount;	
+		context.fireDatasChanged(context.viewmodel, ["$time"]);
+	}
+	
+	//条件为true,每个条件只能满足一次，满足后，就会被删除。
+	onCondtiionTrue(name, conditionObject)
+	{
+		let index = this.timeConditions.indexOf(name);
+		let first = false;
+		if(index >= 0)
+		{
+			first = true;
+			reflex$Log(name + " meet!");
+			this.viewmodel["$" + name] = this.viewmodel["$time"];
+			this.timeConditions.splice(index,1);
+		}
+		if(first && this.timeConditions.length == 0)
+		{
+			clearInterval(this.intervalId);
+			reflex$Log(" clear timer!");
+		}
+		conditionObject.value = true;
+		if(first)
+		{	
+			this.fireDatasChanged(this.viewmodel, "$" + name);
+		}
+	}
 	
 	createBindingAndDescent(element)
 	{
@@ -144,6 +227,22 @@ class Reflex$BindingContext extends Object
 		{
 			attrsLength = attrs.length;
 		}
+		if(element.nodeName.toLowerCase() == "condition")
+		{
+			for(let i = 0; i < attrsLength; i++)
+			{
+				this.createConditionAttrSingle(element, attrs[i]);
+			}
+			return;
+		}
+		if(element.nodeName.toLowerCase() == "data")
+		{
+			for(let i = 0; i < attrsLength; i++)
+			{
+				this.createDataAttrSingle(element, attrs[i]);
+			}
+			return;
+		}
 		//log("create binding for:" + element.nodeName + " attrs: " + attrsLength);
 		for(let i = 0; i < attrsLength; i++)
 		{
@@ -159,7 +258,7 @@ class Reflex$BindingContext extends Object
 		}
 	}
 	
-	
+	//解析html上的binding
 	createBindingAttrSingle(element, attr)
 	{
 		let value = attr.nodeValue;
@@ -167,10 +266,77 @@ class Reflex$BindingContext extends Object
 		{
 			this.bind(element, attr.nodeName, value);
 		}
-		else if(element.nodeName.toLowerCase() == "data")
+	}
+	
+	//解析data
+	createDataAttrSingle(element, attr)
+	{
+		let value = attr.nodeValue;
+		value = value.trim();
+		let isDynamic = this.isDynamicText(value);
+		let name = attr.nodeName;
+		//条件数据
+		let index = name.indexOf(".");
+		let dataOne = {context:this, type:"data"};
+		if(index > 0)
 		{
-			this.viewmodel[attr.nodeName] = attr.nodeValue; 
+			let condition = name.substr(index+1);
+			name = name.substring(0, index);
+			
+			let datas = this.conditionDatas.get(condition);
+			if(!datas)
+			{
+				this.conditionDatas.set(value, new ExpressionBinding(value));
+			}
+			if(isDynamic)
+			{
+			}
+			else{
+				//this.conditionViewModel[] = ;
+			}
 		}
+		else
+		{
+			if(isDynamic)
+			{
+				this.bind(dataOne, name, value);
+			}
+			else{
+				this.changeViewModelData(name, value);
+			}	
+		}
+	}
+	
+	//解析condition
+	createConditionAttrSingle(element, attr)
+	{
+		let value = attr.nodeValue;
+		let name = attr.nodeName;
+		value = value.trim();
+		let conditionOne = {name: name, value:false, context: this, type: "condition"};
+		this.conditions.set(name, conditionOne);
+		if(!this.isDynamicText(value))
+		{
+			let result = value.toLowerCase() == "true";
+			conditionOne.value = result;
+			if(result)
+			{
+				this.onCondtiionTrue(name, conditionOne);
+			}
+			return;
+		}
+		value = value.substring(1, value.length -1);
+		let binding = this.bindings.get(value);
+		if(!binding)
+		{
+			this.bindings.set(value, new ExpressionBinding(value));
+		}
+		if(value.indexOf("$time") >= 0)
+		{
+			this.timeConditions.push(name);
+		}
+		binding = this.bindings.get(value);
+		binding.add(conditionOne, name);
 	}
 	
 	isDynamicText(text)
@@ -194,30 +360,52 @@ class Reflex$BindingContext extends Object
 		binding.add(element, attr);
 	}
 	
+	
+	changeViewModelData(name, value)
+	{
+		this.viewmodel[name] = value;
+		this.fireDataChanged(this.viewmodel, name);
+	}
 
 	//通知数据发生了变化
 	fireDataChanged(context, dataName)
 	{
+		let names = [];
 		for (var [key, value] of this.bindings) {
 			if(key.indexOf(dataName) >= 0)
 			{
-				value.apply(context);
+				if(!value.apply(context))
+				{
+					names.push(key);
+				}
 			}
+		}
+		for(let name of names)
+		{
+			this.bindings.delete(name);
 		}
 	}
 
 	//通知数据发生了变化
 	fireDatasChanged(context, dataNames)
 	{
+		let names = [];
 		for (var [key, value] of this.bindings) {
 			for(var dataName of dataNames)
 			{
 				if(key.indexOf(dataName) >= 0)
 				{
-					value.apply(context);
+					if(!value.apply(context))
+					{
+						names.push(key);
+					}
 					continue;
 				}
 			}
+		}
+		for(let name of names)
+		{
+			this.bindings.delete(name);
 		}
 	}
 
@@ -239,7 +427,13 @@ function reflex$EvalOnContext(context, props, expression)
 		  code += 'var ' + props[i] + ' = context.' + props[i] + ';\n';
 		}
 		code += 'return eval(\"' + expression+ '\");\n})()';
-		return eval(code);
+		try{
+			return  eval(code);
+		}
+		catch(err)
+		{
+			return undefined;
+		}
 	}
 }
 
