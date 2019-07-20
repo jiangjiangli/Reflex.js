@@ -1,0 +1,17 @@
+<html>
+<head>
+	<script src="axios.min.js"></script>
+	<script src="reflex.js"></script>
+</head>
+<body>
+   	<data text="click me" text.boot1000="过去1秒了" text.after2000="又过去2秒了!"></data>
+    <!--condition内的变量都是bool值-->
+	<!--$time是本页面启动后的时间，以ms为单位-->
+	<!--例如boot1000是一个bool值，当启动后1000ms，boot1000就变为true，否则为false -->
+	<condition boot1000="{$time==1000}"></condition>
+	 <!--after2000也是一个bool值，当boot1000变为true后2000ms，也变为true -->
+	<condition after2000="{$time==$boot1000+2000}"></condition>
+	<h2>{text}</h2>
+	 启动时间:<label>{$time}</label>ms
+</body>
+</html>
