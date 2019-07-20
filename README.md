@@ -30,7 +30,11 @@
   ```
 	<data text.conditionname1="hello state up"  text.conditionname2="up after 1000 ms"/>
   ```
-	
+
+ **感受器: **
+ 
+ 感受外部刺激，也就是用户的输入。
+ 
 	
   
  **效应器：**
