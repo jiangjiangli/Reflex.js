@@ -103,26 +103,6 @@ class ReflexInclude extends HTMLElement
 }
 
 customElements.define("rf-include", ReflexInclude);
-
-
-//本页面已经加载的js
-var reflex$jsloaded = ["reflex.js"];
-
-//本页面最顶层的binding context
-var reflex$BindingContext;
-reflex$recordJsLoaded();
-reflex$Log("reflex begin to run");
-
-window.onload = (e) =>
-{
-  reflex$Log("window  loaded");
-  reflex$recordJsLoaded();
-  reflex$BindingContext = new Reflex$BindingContext(document.documentElement);
-
-	//问题：怎么加载当前页面的感受器、router和业务逻辑代码。
-
-	//加载本页面的感受器和router.怎么知道本页面?
-};
 ﻿//用来计算表达式，和绑定数据到视图
 class ExpressionBinding extends Object
 {
@@ -515,13 +495,6 @@ function reflex$EvalOnContext(context, props, expression)
 	}
 }
 
-function sleep(delay) {
-  var start = (new Date()).getTime();
-  while ((new Date()).getTime() - start < delay) {
-    continue;
-  }
-}
-
 //搜索script，把它们记录在案,以防止重复加载
 function reflex$recordJsLoaded()
 {
@@ -558,8 +531,78 @@ function reflex$JsLoaded(name)
 	return reflex$jsloaded.indexOf(name) >= 0;
 }
 
+var reflex$ConstructingContext;
+
+
+//设置当前的interactive context
+function reflex$SetConstructingContext(context)
+{
+	reflex$ConstructingContext = context;
+}
+
+//注册str到当前html交互环境
+function reflex$CreateReceptor(str)
+{
+	reflex$ConstructingContext.createReceptor(str);
+}
+
+
+//注册router到当前html交互环境
+function reflex$CreateRouter(router)
+{
+	reflex$ConstructingContext.createRouter(router);
+}
+
+
+//输出log,带有时间
 function reflex$Log(msg)
 {
 	let date = new Date();
 	console.log(date.getHours() + ":" + date.getMinutes() + ":" + date.getSeconds() + " " + date.getMilliseconds() + "> " +  msg);
 }
+//reflex交互环境
+class Reflex$InteractiveContext extends Object
+{
+  constructor()
+  {
+    super();
+  }
+
+  //创建感受器
+  createReceptor(str)
+  {
+
+  }
+
+  //创建router
+  createRouter(str)
+  {
+
+  }
+
+  createBinding()
+  {
+
+  }
+}
+
+
+//本页面已经加载的js
+var reflex$jsloaded = ["reflex.js"];
+//当前正在构建的context
+var context = new Reflex$InteractiveContext();
+reflex$SetConstructingContext(context);
+
+//本页面最顶层的binding context
+var reflex$BindingContext;
+reflex$recordJsLoaded();
+reflex$Log("reflex begin to run");
+
+window.onload = (e) =>
+{
+  reflex$Log("window  loaded");
+  reflex$recordJsLoaded();
+  reflex$BindingContext = new Reflex$BindingContext(document.documentElement);
+	//问题：怎么加载当前页面的感受器、router和业务逻辑代码。
+	//加载本页面的感受器和router.怎么知道本页面?
+};

@@ -26,13 +26,6 @@ function reflex$EvalOnContext(context, props, expression)
 	}
 }
 
-function sleep(delay) {
-  var start = (new Date()).getTime();
-  while ((new Date()).getTime() - start < delay) {
-    continue;
-  }
-}
-
 //搜索script，把它们记录在案,以防止重复加载
 function reflex$recordJsLoaded()
 {
@@ -69,6 +62,30 @@ function reflex$JsLoaded(name)
 	return reflex$jsloaded.indexOf(name) >= 0;
 }
 
+var reflex$ConstructingContext;
+
+
+//设置当前的interactive context
+function reflex$SetConstructingContext(context)
+{
+	reflex$ConstructingContext = context;
+}
+
+//注册str到当前html交互环境
+function reflex$CreateReceptor(str)
+{
+	reflex$ConstructingContext.createReceptor(str);
+}
+
+
+//注册router到当前html交互环境
+function reflex$CreateRouter(router)
+{
+	reflex$ConstructingContext.createRouter(router);
+}
+
+
+//输出log,带有时间
 function reflex$Log(msg)
 {
 	let date = new Date();

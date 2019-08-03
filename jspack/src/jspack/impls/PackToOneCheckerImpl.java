@@ -178,6 +178,11 @@ public class PackToOneCheckerImpl implements IPackToOneChecker {
 			int i = 0;
 			for(FileInfo2 info : map.values())
 			{
+				if(info.filePath.endsWith("_main.js"))
+				{
+					this.sources[count -1] = info.filePath;
+					continue;
+				}
 				this.sources[i++] = info.filePath;
 			}
 			

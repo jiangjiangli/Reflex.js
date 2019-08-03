@@ -3,19 +3,14 @@
 	<script src="axios.min.js"></script>
 	<script src="reflex.js"></script>
 	<!--手动写入感受器和router -->
-	<script src="recept.recept.js"></script>
-	<script src="recept.router.js"></script>
+	<script src="recept.router"> </script>
 	<!--业务逻辑的js，也就是command.js，每一个command，都是一个单独的js文件，并且有命名规则，根据router，自动把command.js添加到head 上。-->
 	<!--需要注意的是，command.js可能需要一些工具类，甚至服务，怎么办？手动import js，然后写工具检查依赖，把依赖的js，自动添加到head上-->
 </head>
 <body>
-	<data text="click me" text.boot1000="过去1秒了" text.after2000="又过去2秒了!"></data>
-	<!--$time是本页面启动后的时间，以ms为单位-->
-	<!--例如boot1000是一个bool值，当启动后1000ms，boot1000就变为true，否则为false -->
-	<condition boot1000="{$time==1000}"></condition>
-	<!--after2000也是一个bool值，当boot1000变为true后2000ms，也变为true -->
-	<condition after2000="{$time==$boot1000+2000}"></condition>
+	<data text="click me" text.clicked="{'clicked: ' + clickcount}" ></data>
+	<condition clicked="{clickcount > 0}"></condition>
+
 	<h2 id="title">{text}</h2>
-	启动时间:<label>{$time}</label>ms
 </body>
 </html>
