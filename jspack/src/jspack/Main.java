@@ -2,6 +2,7 @@
 
 import java.io.File;
 
+import html.impl.HtmlJsAutoImporterImpl;
 import jspack.impls.PackHandlerImpl;
 import jspack.impls.PackToOneCheckerImpl;
 
@@ -19,7 +20,8 @@ public class Main {
 	{
 		File file = new File(System.getProperty("user.dir"));
 		file = file.getParentFile();
-		String dir = file.getAbsolutePath();
+		String parentDir = file.getAbsolutePath();
+		String dir = parentDir+ File.separator + "js";
 		if(args.length > 0)
 		{
 			dir = args[0];
@@ -27,6 +29,11 @@ public class Main {
 		IPackToOneChecker checker = new PackToOneCheckerImpl();
 		checker.addNeedPackHandlder(new PackHandlerImpl());
 		checker.check(dir);
+		
+		//html
+		HtmlJsAutoImporterImpl jsImporter = new HtmlJsAutoImporterImpl();
+		jsImporter.handleOn(parentDir);
+		
 		while(true)
 		{
 			checker.handle();		

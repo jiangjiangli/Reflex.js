@@ -11,11 +11,11 @@ var reflex$BindingContext;
 reflex$recordJsLoaded();
 reflex$Log("reflex begin to run");
 
-window.onload = (e) =>
+document.addEventListener("DOMContentLoaded", function(event)
 {
-  reflex$Log("window  loaded");
+  reflex$Log("document loaded");
   reflex$recordJsLoaded();
-  reflex$BindingContext = new Reflex$BindingContext(document.documentElement);
-	//问题：怎么加载当前页面的感受器、router和业务逻辑代码。
-	//加载本页面的感受器和router.怎么知道本页面?
-};
+  reflex$BindingContext = new Reflex$BindingContext(document.documentElement,true);
+  //问题：怎么加载当前页面的感受器、router和业务逻辑代码。
+  //加载本页面的感受器和router.怎么知道本页面?
+});

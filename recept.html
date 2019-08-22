@@ -1,5 +1,16 @@
 <html>
 <head>
+	<style>
+		html{
+			background-color: #ff0000;
+		}
+
+		body{
+			background-color: #00ff00;
+			border: 1px solid black;
+		//	margin: 0 auto;
+		}
+	</style>
 	<script src="axios.min.js"></script>
 	<script src="reflex.js"></script>
 	<!--手动写入感受器和router -->
@@ -11,6 +22,6 @@
 	<data text="click me" text.clicked="{'clicked: ' + clickcount}" ></data>
 	<condition clicked="{clickcount > 0}"></condition>
 
-	<h2 id="title">{text}</h2>
+	<h1 id="title">{text}</h1>
 </body>
 </html>

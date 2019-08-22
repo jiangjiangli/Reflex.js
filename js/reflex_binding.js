@@ -69,7 +69,7 @@ class ExpressionBinding extends Object
 //遍历当下的dom，建立数据绑定环境，不包括rf-include.rf-include加载后，创建自己的binding context
 class Reflex$BindingContext extends Object
 {
-	constructor(element)
+	constructor(element, includeSelf)
 	{
 		super();
 		this.viewmodel = {};
@@ -80,7 +80,7 @@ class Reflex$BindingContext extends Object
 		this.usingData2ConditionDataMap = new Map();
 		this.timeConditions = [];
 		this.element = element;
-		this.createBindingAndDescent(element);
+		this.createBindingAndDescent(element,includeSelf);
 		//要启动时间,一直到所有的时间条件都满足了
 		if(this.timeConditions.length > 0)
 		{
@@ -156,13 +156,16 @@ class Reflex$BindingContext extends Object
 		}
 	}
 
-	createBindingAndDescent(element)
+	createBindingAndDescent(element,includeSelf)
 	{
-		this.createBindingSingle(element);
+		if(includeSelf)
+		{
+				this.createBindingSingle(element);
+		}
 		var children = element.childNodes;
 		for (var i = 0; i < children.length; i++) {
 			var child = children[i];
-			this.createBindingAndDescent(child);
+			this.createBindingAndDescent(child,true);
 		}
 	}
 
@@ -194,6 +197,12 @@ class Reflex$BindingContext extends Object
 		//log("create binding for:" + element.nodeName + " attrs: " + attrsLength);
 		for(let i = 0; i < attrsLength; i++)
 		{
+			let attr = attrs[i];
+			if(attr.nodeName == "include")
+			{
+				new ReflexInclude(element, attr.nodeValue);
+				continue;
+			}
 			this.createBindingAttrSingle(element, attrs[i]);
 		}
 		if(element.nodeType == Node.TEXT_NODE)

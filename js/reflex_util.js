@@ -1,5 +1,4 @@
 
-
 //读取context上的值来计算表达式的值。如果考虑性能问题，可以指定props的值，否则把context上所有的属性都声明一遍。
 function reflex$EvalOnContext(context, props, expression)
 {

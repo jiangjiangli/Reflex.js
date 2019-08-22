@@ -1,0 +1,1 @@
+alert("part1");
