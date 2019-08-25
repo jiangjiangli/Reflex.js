@@ -6,15 +6,17 @@
 	<script src="../js/jquery-3.4.1.min.js"></script>
 	<script src="../js/reflex.js"></script>
 <!--auto-import-begin-->
-	<script src='../js/jquery-3.4.1.min.js'></script>
+	<script src='tool.html.js'></script>
 	<script src='https://unpkg.com/wangeditor@3.1.1/release/wangEditor.min.js'></script>
 	<script src='editor.html.js'></script>
 <!--auto-import-end-->
 </head>
 <body >
+	<data text.boot2000 = "过去2秒了" text="ddddddddddd"/>
+	<condition boot2000="{$time==2000}"></condition>
 	<h2>nav bar</h2>
 	<a left="0" top="100" >发布</a>
-  <nav include="editor.html" ></nav>
-	内容
+  <nav include="editor.html" show="boot2000"></nav>
+	<a>{text}</a>
 </body>
 </html>

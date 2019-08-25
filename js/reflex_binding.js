@@ -47,10 +47,9 @@ class ExpressionBinding extends Object
 		else if(element.context)
 		{
 			//condition
-			if(element.type == "condition" && value)
+			if(element.type == "condition")
 			{
-				element.context.onCondtiionTrue(attr,element);
-				return true;
+				return element.context.onCondtionValue(attr,element, value);
 			}
 			else if(element.type == "data")
 			{
@@ -80,6 +79,8 @@ class Reflex$BindingContext extends Object
 		this.usingData2ConditionDataMap = new Map();
 		this.timeConditions = [];
 		this.element = element;
+		//{condition0:[element,]},{}]};
+		this.conditionShowMap = new Map();
 		this.createBindingAndDescent(element,includeSelf);
 		//要启动时间,一直到所有的时间条件都满足了
 		if(this.timeConditions.length > 0)
@@ -100,30 +101,65 @@ class Reflex$BindingContext extends Object
 	}
 
 	//条件为true,每个条件只能满足一次，满足后，就会被删除。
-	//conditionObject格式： {name: name, value:false, context: this, type: "condition"}
-	onCondtiionTrue(name, conditionObject)
+	//conditionObject格式： {name: name, value:false, context: this, type: "condition", }
+	//返回: 是否需要删除该condition的监听
+	onCondtionValue(name, conditionObject,value)
 	{
 		let index = this.timeConditions.indexOf(name);
 		let first = false;
+		let oldValue = conditionObject.value;
+		let changed = oldValue != value;
+		if(!changed)
+		{
+			return false;
+		}
+		conditionObject.value = value;
+		if(value)
+		{
+			if(index >= 0)
+			{
+				first = true;
+				reflex$Log(name + " meet!");
+				this.viewmodel["$" + name] = this.viewmodel["$time"];
+			}
+		}
+		let shouldDelete  = false;
 		if(index >= 0)
 		{
-			first = true;
-			reflex$Log(name + " meet!");
-			this.viewmodel["$" + name] = this.viewmodel["$time"];
-			this.timeConditions.splice(index,1);
+			shouldDelete=  this.timeConditionShoudleDeleted(conditionObject, oldValue);
+			if(shouldDelete)
+			{
+				this.timeConditions.splice(index,1);
+			}
 		}
-		if(first && this.timeConditions.length == 0)
+		if(this.timeConditions.length == 0)
 		{
 			clearInterval(this.intervalId);
 			reflex$Log(" clear timer!");
 		}
-		conditionObject.value = true;
+		//更改显示设置
+		this.showOrHideByConditionChanged(name);
+		if(!value)
+		{
+			return shouldDelete;
+		}
 		//如果条件为true,则检查condition data，使得生效
 		this.makeConditionDataApplied(name);
-		if(first)
+		//update time condition value
+		if(index>=0)
 		{
 			this.fireDatasChanged(this.viewmodel, "$" + name);
 		}
+		return shouldDelete;
+	}
+
+	timeConditionShoudleDeleted(conditionObject, oldValue)
+	{
+		if(oldValue== undefined)
+		{
+			return false;
+		}
+		return oldValue != conditionObject.value;
 	}
 
 	//在当前condition下，使data.condition 生效
@@ -154,6 +190,73 @@ class Reflex$BindingContext extends Object
 		{
 			this.changeViewModelData(target.dataName, newValue);
 		}
+	}
+
+	showOrHideByConditionChanged(condition)
+	{
+		//{condition0:[element,]},{}]};
+		if(!this.conditionShowMap.has(condition))
+		{
+			return;
+		}
+		let array = this.conditionShowMap.get(condition);
+		for(let element of array)
+		{
+			this.showOrHideOneElement(element);
+		}
+	}
+
+	//默认可见
+	showOrHideOneElement(element)
+	{
+		let showValue = element.getAttribute("show");
+		let visible = true;
+		if(showValue && showValue.length > 0)
+		{
+			  visible = false;
+				//只有一个conditon满足，就可见
+				let conditions = showValue.split(",");
+				for(let condition of conditions)
+				{
+					if(this.isConditionValueTrue(condition))
+					{
+						visible = true;
+						break;
+					}
+				}
+		}
+		if(!visible)
+		{
+			 this.applysHowOnElement(element,visible);
+			return;
+		}
+		let hideValue = element.getAttribute("hide");
+		if(!hideValue)
+		{
+		  this.applysHowOnElement(element,visible);
+			return;
+		}
+		//只有一个conditon满足，就可见
+		let conditions = hideValue.split(",");
+		for(let condition of conditions)
+		{
+			if(this.isConditionValueTrue(condition))
+			{
+				visible = false;
+				break;
+			}
+		}
+		 this.applysHowOnElement(element,visible);
+	}
+
+	applysHowOnElement(element, show)
+	{
+			if(show)
+			{
+				$(element).show();
+				return;
+			}
+			$(element).hide();
 	}
 
 	createBindingAndDescent(element,includeSelf)
@@ -200,6 +303,10 @@ class Reflex$BindingContext extends Object
 			let attr = attrs[i];
 			if(attr.nodeName == "include")
 			{
+				if(element.getAttribute("loaded"))
+				{
+						continue;
+				}
 				new ReflexInclude(element, attr.nodeValue);
 				continue;
 			}
@@ -222,7 +329,36 @@ class Reflex$BindingContext extends Object
 		if(this.isDynamicText(value))
 		{
 			this.bind(element, attr.nodeName, value);
+			return;
 		}
+		let nodeName = attr.nodeName;
+		if(nodeName == "show" || nodeName == "hide")
+		{
+			this.addToShowMap(element, value);
+		}
+	}
+
+	addToShowMap(element, nodeValue)
+	{
+		 let conditions = nodeValue.split(",");
+		 for(let condition of conditions)
+		 {
+			 let array;
+			 if(!this.conditionShowMap.has(condition))
+			 {
+				 array = [];
+				 this.conditionShowMap.set(condition, array);
+			 }
+			 else {
+			 	array = this.conditionShowMap.get(condition);
+			 }
+			 if(array.indexOf(element) >= 0)
+			 {
+				 continue;
+			 }
+			 array.push(element);
+		 }
+
 	}
 
 	//解析data
@@ -274,16 +410,13 @@ class Reflex$BindingContext extends Object
 		let value = attr.nodeValue;
 		let name = attr.nodeName;
 		value = value.trim();
-		let conditionOne = {name: name, value:false, context: this, type: "condition"};
+		let conditionOne = {name: name, value:undefined, context: this, type: "condition"};
 		this.conditions.set(name, conditionOne);
 		if(!this.isDynamicText(value))
 		{
 			let result = value.toLowerCase() == "true";
 			conditionOne.value = result;
-			if(result)
-			{
-				this.onCondtiionTrue(name, conditionOne);
-			}
+			this.onCondtionValue(name, conditionOne,result);
 			return;
 		}
 		value = value.substring(1, value.length -1);
@@ -298,6 +431,15 @@ class Reflex$BindingContext extends Object
 		}
 		binding = this.bindings.get(value);
 		binding.add(conditionOne, name);
+	}
+
+	isConditionValueTrue(name)
+	{
+		 if(!this.conditions.has(name))
+		 {
+			 return false;
+		 }
+		 return this.conditions.get(name).value;
 	}
 
 	isDynamicText(text)

@@ -8,6 +8,7 @@ class ReflexInclude extends Object
 		this.root =element;
 		this.src = src;
 		this.load(src);
+		element.setAttribute("loaded",true);
 		reflex$Log("reflex-include construct");
 	}
 
