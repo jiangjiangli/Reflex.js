@@ -2,6 +2,9 @@ var $editor_html=`
 <html>
 <head>
 	<script src="https://unpkg.com/wangeditor@3.1.1/release/wangEditor.min.js"></script>
+<!--auto-import-begin-->
+	<script src='editor-recept-router.js'></script>
+<!--auto-import-end-->
 </head>
 <body>
 	<div id="editor">

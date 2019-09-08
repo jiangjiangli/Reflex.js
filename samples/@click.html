@@ -1,22 +1,18 @@
 <html>
 <head>
+  <meta name="page" content="click" />
 	<style>
 	</style>
 	<script src="../js/axios.min.js"></script>
 	<script src="../js/jquery-3.4.1.min.js"></script>
 	<script src="../js/reflex.js"></script>
 <!--auto-import-begin-->
-	<script src='tool.html.js'></script>
-	<script src='https://unpkg.com/wangeditor@3.1.1/release/wangEditor.min.js'></script>
-	<script src='editor-recept-router.js'></script>
-	<script src='editor.html.js'></script>
+	<script src='@click-recept-router.js'></script>
 <!--auto-import-end-->
 </head>
-<body>
+<body >
 	<data text.boot2000 = "过去2秒了" text="ddddddddddd"/>
 	<condition boot2000="{$time==2000}"></condition>
-	<h2>nav bar</h2>
-	<a>{text}</a>
-  <nav include="editor.html" show="boot2000"></nav>
+  <button name="bt" >{text}</button>
 </body>
 </html>

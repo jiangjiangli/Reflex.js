@@ -17,6 +17,9 @@
 	<script src="recept.router"> </script>
 	<!--业务逻辑的js，也就是command.js，每一个command，都是一个单独的js文件，并且有命名规则，根据router，自动把command.js添加到head 上。-->
 	<!--需要注意的是，command.js可能需要一些工具类，甚至服务，怎么办？手动import js，然后写工具检查依赖，把依赖的js，自动添加到head上-->
+<!--auto-import-begin-->
+	<script src='recept-recept-router.js'></script>
+<!--auto-import-end-->
 </head>
 <body>
 	<data text="click me" text.clicked="{'clicked: ' + clickcount}" ></data>

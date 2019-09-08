@@ -2,7 +2,6 @@ package html.impl;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.PrintWriter;
 import java.util.ArrayList;
@@ -30,9 +29,13 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 	
 	private Map<String, Html> path2HtmlMap = new HashMap<String, Html>();
 	
+	private Map<String, Html> path2HtmlAllMap = new HashMap<String, Html>();
+	
 	private static final String IMPORT_BEGIN_TAG="<!--auto-import-begin-->";
 	private static final String IMPORT_END_TAG="<!--auto-import-end-->";
 	private static final String HEAD_END_TAG="</head>";
+	
+	private static final  String RECEPT_ROUTER_JS_SUBFFIX= "recept-router.js";
 	@Override
 	public void handleOn(String dir) {
 		this.dir = dir;
@@ -65,7 +68,25 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 						}
 					}
 					path2HtmlMap = newMap;
+					
+					
+					List<String> htmls = listAllHtmls(this.dir);
+					newMap = new HashMap<String, Html>();
+					if(htmls != null)
+					{
+						for(String html : htmls)
+						{
+							newMap.put(html, path2HtmlAllMap.get(html));
+						}
+					}
+					path2HtmlAllMap = newMap;
 				}
+				//更新所有html的receptor-router.js
+				for(Map.Entry<String, Html> pair : path2HtmlAllMap.entrySet())
+				{
+					importReceptorJsIfNeeded(pair.getKey());
+				}
+				
 				//每1s就检查页面是否更新了，然后自动导入
 				for(Map.Entry<String, Html> pair : path2HtmlMap.entrySet())
 				{
@@ -97,11 +118,12 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 		importJs4Html(html);
 	}
 	
+
 	private void importJs4Html(Html html)
 	{
 		String path = html.path;
 		
-
+		html.checkAndUpdateReceptAndRouter();
 		boolean inImportRegin = false;
 		boolean foundImportRegion=false;
 		StringBuffer sb = new StringBuffer();
@@ -119,6 +141,7 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 					sb.append(line);
 					sb.append("\r\n");
 					// import 
+					importReceptorAndRouterJs(sb, html,RECEPT_ROUTER_JS_SUBFFIX);
 					importChildren(sb,html);
 		
 				}
@@ -135,6 +158,7 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 						sb.append(IMPORT_BEGIN_TAG);
 						sb.append("\r\n");
 						// import 
+						importReceptorAndRouterJs(sb, html,RECEPT_ROUTER_JS_SUBFFIX);
 						importChildren(sb,html);
 						sb.append(IMPORT_END_TAG);
 						sb.append("\r\n");
@@ -162,6 +186,122 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 		} catch (Exception e) {
 			
 			e.printStackTrace();
+		}
+	}
+	
+	private void addReceptorAndRouterJsToHtml(Html html, String subffix)
+	{
+		String path = html.path;
+		String jsName = getReceptAndRouterJsName(html, subffix);
+		boolean jsInHtml = false;
+
+		//parse html
+		DocumentBuilderFactory fac= DocumentBuilderFactory.newInstance();
+		//用上面的工厂创建一个文档解析器
+        DocumentBuilder builder;
+        
+		try {
+			builder = fac.newDocumentBuilder();
+			Document doc=builder.parse(path);
+			
+			NodeList scripts = doc.getElementsByTagName("script");
+			int length = scripts.getLength();
+			for(int i = 0; i < length; i++)
+			{
+				Element node = (Element) scripts.item(i);
+				if(node.hasAttribute("src"))
+				{
+					String name = node.getAttribute("src");
+					if(name.endsWith(jsName))
+					{
+						jsInHtml = true;
+						break;
+					}
+				}
+			}
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		if(jsInHtml)
+		{
+			return;
+		}
+		
+		boolean inImportRegin = false;
+		boolean foundImportRegion=false;
+		StringBuffer sb = new StringBuffer();
+		//import js
+		try {
+
+			BufferedReader reader = new BufferedReader(new FileReader(path));
+			String line = reader.readLine();
+			while(line != null)
+			{
+				if(line.trim().startsWith(IMPORT_BEGIN_TAG))
+				{
+					inImportRegin = true;
+					foundImportRegion = true;
+					sb.append(line);
+					sb.append("\r\n");
+					// import 
+					importReceptorAndRouterJs(sb, html,subffix);
+				}
+				else if(line.trim().startsWith(IMPORT_END_TAG))
+				{
+					inImportRegin = false;
+					sb.append(line);
+					sb.append("\r\n");
+				}
+				else if(line.trim().toLowerCase().startsWith(HEAD_END_TAG))
+				{
+					if(!foundImportRegion)
+					{
+						sb.append(IMPORT_BEGIN_TAG);
+						sb.append("\r\n");
+						// import 
+						importReceptorAndRouterJs(sb, html, subffix);
+						sb.append(IMPORT_END_TAG);
+						sb.append("\r\n");
+					}
+					sb.append(line);
+					sb.append("\r\n");
+				}
+				else
+				{
+					sb.append(line);
+					sb.append("\r\n");
+				}
+				line = reader.readLine();
+			}
+			reader.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+		
+		try {
+			PrintWriter writer = new PrintWriter(new File(path));
+			writer.write(sb.toString());
+			writer.flush();
+			writer.close();
+		} catch (Exception e) {
+			
+			e.printStackTrace();
+		}
+	}
+	
+	private String getReceptAndRouterJsName(Html html, String subffix)
+	{
+		int index = html.name.lastIndexOf(".");
+		String name = index < 0 ? html.name : html.name.substring(0, index);
+		return name + "-" + subffix;
+	}
+	
+	private void importReceptorAndRouterJs(StringBuffer sb, Html html, String subffix)
+	{
+		if(html.receptorPath != null || html.routerPath != null)
+		{
+			String name = getReceptAndRouterJsName(html, subffix);
+			sb.append("	<script src='" + name + "'></script>\r\n");
 		}
 	}
 	
@@ -229,6 +369,8 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 		html.scripts = list;
 		return html;
 	}
+
+	
 	/**
 	 * html以及include 子孙 结构发生了改变 
 	 * @param html
@@ -238,7 +380,7 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 	{
 		long lastModified = html.lastMofied;
 		File file = new File(html.path);
-		//检查改变
+		//检查自己改变
 		if(file.lastModified() != lastModified)
 		{
 			Html changed = createHtml(html.path);
@@ -293,6 +435,107 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 		return false;
 	}
 	
+	
+	/**
+	    *      如有必要，自动导入receptor-router.js,并生成它们
+	 * @param path
+	 */
+	private void importReceptorJsIfNeeded(String path)
+	{
+		Html html = path2HtmlAllMap.get(path);
+		if(html == null)
+		{
+			html = new Html(path);
+			path2HtmlAllMap.put(path, html);
+		}
+		int status = html.checkAndUpdateReceptAndRouter();
+		if(status == 0)
+		{
+			return;
+		}
+
+		//存在状态发生了变化
+		if(status == 1)
+		{
+			//不存在
+			if(!html.isAnyReceptAndRouterExist())
+			{
+				return;
+			}
+			//存在 import js
+			addReceptorAndRouterJsToHtml(html, RECEPT_ROUTER_JS_SUBFFIX);
+			generateReceptorRouterjs(html,RECEPT_ROUTER_JS_SUBFFIX);
+			return;
+		}
+		//更新receptor-router.js
+		generateReceptorRouterjs(html,RECEPT_ROUTER_JS_SUBFFIX);
+	}
+	
+	private void generateReceptorRouterjs(Html html, String subffix)
+	{
+		File dirFile = new File(html.path).getParentFile();
+		String name = getReceptAndRouterJsName(html, subffix);
+		String dest = dirFile.getAbsolutePath() + File.separator + name;
+		//import js
+		try {
+
+			StringBuffer sb = new StringBuffer();
+			PrintWriter writer = new PrintWriter(new File(dest));
+			if(html.receptorPath != null)
+			{
+				File file = new File(html.receptorPath);
+				name = file.getName().replace(".", "_");
+				name = name.replace("@", "");
+				writer.write("var reflex$" + name + "=`\r\n");
+				read(html.receptorPath, sb);
+				
+				writer.write(sb.toString());
+				writer.write("\r\n");
+				writer.write("`");
+				
+				sb.setLength(0);
+			}
+			writer.write("\r\n");
+			if(html.routerPath != null)
+			{
+				File file = new File(html.routerPath);
+				name = file.getName().replace(".", "_");
+				name = name.replace("@", "");
+				writer.write("var reflex$" + name + "=`\r\n");
+				read(html.routerPath, sb);
+				
+				writer.write(sb.toString());
+				writer.write("\r\n");
+				writer.write("`");
+				
+				sb.setLength(0);
+			}
+
+			writer.flush();
+			writer.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	private void read(String path, StringBuffer sb)
+	{
+		try {
+			BufferedReader reader = new BufferedReader(new FileReader(path));
+			String line = reader.readLine();
+			while(line != null)
+			{
+				sb.append(line);	
+				sb.append("\r\n");
+				line = reader.readLine();
+			}
+			reader.close();
+		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+	
+	
 	private void html2Js(String src,String name, String dest)
 	{
 		//import js
@@ -302,7 +545,7 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 			BufferedReader reader = new BufferedReader(new FileReader(src));
 			String line = reader.readLine();
 			name = name.replace(".", "_");
-			writer.write("var $" + name + "=`\r\n");
+			writer.write("var reflex$" + name + "=`\r\n");
 			while(line != null)
 			{
 				writer.write(line);	
@@ -317,6 +560,7 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 			e.printStackTrace();
 		}
 	}
+	
 	
 	private List<String> listInclude(String dir, Element element)
 	{
@@ -368,6 +612,10 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 				 }
 				 continue;
 			}
+			if(!child.getAbsolutePath().endsWith(".html"))
+			{
+				continue;
+			}
 			if(child.getName().startsWith("@"))
 			{
 				result.add(child.getAbsolutePath());
@@ -375,6 +623,37 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 		}
 		return result;
 	}
+ 	
+ 	
+ 	private List<String> listAllHtmls(String dir)
+	{
+		File dirFile = new File(dir);
+		if(!dirFile.exists())
+		{
+			return null;
+		}
+		List<String> result = new ArrayList<String>();
+		File[] children = dirFile.listFiles();
+		for(File child : children)
+		{
+			if(child.isDirectory())
+			{
+				 List<String> files = listAllHtmls(child.getAbsolutePath());
+				 if(files != null)
+				 {
+					 result.addAll(files);
+				 }
+				 continue;
+			}
+			if(!child.getAbsolutePath().endsWith(".html"))
+			{
+				continue;
+			}
+			result.add(child.getAbsolutePath());
+		}
+		return result;
+	}
+	
 	
 	private static class Html
 	{
@@ -383,9 +662,17 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 		private String dir;
 		private long lastMofied;
 		
+		//本页面自己的js
 		private List<String> scripts;
 		
 		private List<Html> children;
+		
+		
+		private String receptorPath;
+		private long receptorLastModified;
+		
+		private String routerPath;
+		private long routerLastModified;
 		
 		public Html(String path)
 		{
@@ -400,6 +687,12 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 			this.lastMofied = another.lastMofied;
 			this.scripts = another.scripts;
 			this.children = another.children;
+			
+			this.receptorPath = another.receptorPath;
+			this.receptorLastModified = another.receptorLastModified;
+			
+			this.routerPath = another.routerPath;
+			this.routerLastModified = another.routerLastModified;
 		}
 		
 		private boolean scriptsAndChildrenChanged(Html anotherHtml)
@@ -470,6 +763,81 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 			return false;
 		}
 		
+		/**
+		 *  html receptor ,router存在状态是否发生了变化。
+		 * @return
+		 */
+		private boolean receptAndRouterChanged(Html anotherHtml)
+		{
+			String receptor = this.receptorPath == null ? "" : this.receptorPath;
+			String receptor1 = anotherHtml.receptorPath == null ? "" : anotherHtml.receptorPath;
+			if(!receptor.equals(receptor1))
+			{
+				return true;
+			}
+			String router = this.routerPath == null ? "" : this.routerPath;
+			String router1 = anotherHtml.routerPath == null ? "" : anotherHtml.routerPath;
+			if(!router.equals(router1))
+			{
+				return true;
+			}
+			return false;
+		}
+		
+		/**
+		 *     更新html receptor ,router的状态。
+		 * @return 0:没有发生变化;1,是否存在发生了变化；2，存在没有发生变化，但lastmodified时间变了
+		 */
+		private int checkAndUpdateReceptAndRouter()
+		{
+			File file = new File(this.path);
+			File receptFile = getSameNameFile(file, ".recept");
+			String oldReceptor = this.receptorPath == null ? "" : this.receptorPath;
+			String oldRouter = this.routerPath == null ? "" : this.routerPath;
+			boolean timeChanged = false;
+			if(receptFile != null)
+			{
+				this.receptorPath = receptFile.getAbsolutePath();
+				timeChanged = this.receptorLastModified != receptFile.lastModified();
+				this.receptorLastModified = receptFile.lastModified();
+			}
+			else
+			{
+				this.receptorPath = null;
+				this.receptorLastModified = 0;
+			}
+			
+			File routerFile = getSameNameFile(file, ".router");
+			if(routerFile != null)
+			{
+				this.routerPath = routerFile.getAbsolutePath();
+				if(!timeChanged)
+				{
+					timeChanged = this.routerLastModified != routerFile.lastModified();
+				}
+				this.routerLastModified = routerFile.lastModified();
+			}
+			else
+			{
+				this.routerPath = null;
+				this.routerLastModified = 0;
+			}
+			
+			String currentReceptor = this.receptorPath == null ? "" : this.receptorPath;
+			String currentRouter = this.routerPath == null ? "" : this.routerPath;
+			boolean existChanged =  !oldReceptor.equals(currentReceptor) || !oldRouter.equals(currentRouter);
+			if(existChanged)
+			{
+				return 1;
+			}
+			return timeChanged ? 1 : 0;
+		}
+		
+		public boolean isAnyReceptAndRouterExist()
+		{
+			return  this.receptorPath != null || this.routerPath != null;
+		}
+		
 		public boolean equals(Object item)
 		{
 			if(!(item instanceof Html))
@@ -477,6 +845,22 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 				return true;
 			}
 			return this.path.equals(((Html)item).path);
+		}
+		
+		
+		private File getSameNameFile(File html, String subbfix)
+		{
+			String dir  = html.getParent();
+			String name = html.getName();
+			int subbfixIndex = name.lastIndexOf(".");
+			name = subbfixIndex < 0 ? name : name.substring(0, subbfixIndex);
+			String receptorPath = dir + File.separator + name + subbfix;
+			File file = new File(receptorPath);
+			if(file.exists())
+			{
+				return file;
+			}
+			return null;
 		}
 	}
 }

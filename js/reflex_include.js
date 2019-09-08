@@ -15,7 +15,7 @@ class ReflexInclude extends Object
 	load(src)
 	{
 		var parent = this;
-		let htmlJsName = "$" + src.replace(/\./, "_");
+		let htmlJsName = "reflex$" + src.replace(/\./, "_");
 		let content = window[htmlJsName];
 		if(content)
 		{
@@ -74,6 +74,7 @@ class ReflexInclude extends Object
 				continue;
 			}
 			this.constructingIndex = i;
+			//script顺序加载
 			script.onload = function(){ context.onScriptLoaded(context, item.src);};
 			script.onerror = function(){ context.onScriptLoaded(context, item.src);};
 			script.src = item.src;

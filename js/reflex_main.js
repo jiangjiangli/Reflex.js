@@ -6,8 +6,6 @@ var reflex$jsloaded = ["reflex.js"];
 var context = new Reflex$InteractiveContext();
 reflex$SetConstructingContext(context);
 
-//本页面最顶层的binding context
-var reflex$BindingContext;
 reflex$recordJsLoaded();
 reflex$Log("reflex begin to run");
 
@@ -15,7 +13,6 @@ document.addEventListener("DOMContentLoaded", function(event)
 {
   reflex$Log("document loaded");
   reflex$recordJsLoaded();
-  reflex$BindingContext = new Reflex$BindingContext(document.documentElement,true);
-  //问题：怎么加载当前页面的感受器、router和业务逻辑代码。
-  //加载本页面的感受器和router.怎么知道本页面?
+  context.createBinding(document.documentElement,true);
+  context.interactive(document.documentElement);
 });

@@ -5,7 +5,7 @@ var $tool_html=`
     <title></title>
   </head>
   <body>
-     <div>123</div>
+     <div></div>
   </body>
 </html>
 `

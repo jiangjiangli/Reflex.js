@@ -48,7 +48,7 @@ class ReflexInclude extends Object
 	load(src)
 	{
 		var parent = this;
-		let htmlJsName = "$" + src.replace(/\./, "_");
+		let htmlJsName = "reflex$" + src.replace(/\./, "_");
 		let content = window[htmlJsName];
 		if(content)
 		{
@@ -107,6 +107,7 @@ class ReflexInclude extends Object
 				continue;
 			}
 			this.constructingIndex = i;
+			//script顺序加载
 			script.onload = function(){ context.onScriptLoaded(context, item.src);};
 			script.onerror = function(){ context.onScriptLoaded(context, item.src);};
 			script.src = item.src;
@@ -737,6 +738,48 @@ class Reflex$InteractiveContext extends Object
     super();
   }
 
+  createBinding(element, includeSelf)
+  {
+    this.bindingContext = new Reflex$BindingContext(element, includeSelf);
+  }
+
+  //获取page name
+  interactive(element)
+  {
+    let metas = element.getElementsByTagName("meta");
+    let length = metas.length;
+    for (var i = 0; i < length; i++)
+    {
+      var name = metas[i].getAttribute("name");
+      if ( name != "page" ) {
+        continue;
+      }
+      var pageName = metas[i].getAttribute("content");
+      if(pageName)
+      {
+        this.interactivePage(pageName);
+        break;
+      }
+    }
+  }
+
+//根据page name获取recpet, router定义
+  interactivePage(pageName)
+  {
+    let receptName = "reflex$" + pageName + "_recept";
+    let receptContent = window[receptName];
+    if(receptContent)
+    {
+      this.createReceptor(receptContent);
+    }
+    let routerName = "reflex$" + pageName + "_router";
+    let routerContent = window[routerName];
+    if(routerContent)
+    {
+      this.createRouter(routerContent);
+    }
+  }
+
   //创建感受器
   createReceptor(str)
   {
@@ -745,11 +788,6 @@ class Reflex$InteractiveContext extends Object
 
   //创建router
   createRouter(str)
-  {
-
-  }
-
-  createBinding()
   {
 
   }
@@ -762,8 +800,6 @@ var reflex$jsloaded = ["reflex.js"];
 var context = new Reflex$InteractiveContext();
 reflex$SetConstructingContext(context);
 
-//本页面最顶层的binding context
-var reflex$BindingContext;
 reflex$recordJsLoaded();
 reflex$Log("reflex begin to run");
 
@@ -771,7 +807,6 @@ document.addEventListener("DOMContentLoaded", function(event)
 {
   reflex$Log("document loaded");
   reflex$recordJsLoaded();
-  reflex$BindingContext = new Reflex$BindingContext(document.documentElement,true);
-  //问题：怎么加载当前页面的感受器、router和业务逻辑代码。
-  //加载本页面的感受器和router.怎么知道本页面?
+  context.createBinding(document.documentElement,true);
+  context.interactive(document.documentElement);
 });
