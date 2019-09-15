@@ -1,4 +1,4 @@
-bt
+#bt
 {
-  click
+  (click):click
 }

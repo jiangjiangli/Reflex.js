@@ -8,6 +8,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -31,8 +33,13 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 	
 	private Map<String, Html> path2HtmlAllMap = new HashMap<String, Html>();
 	
-	private static final String IMPORT_BEGIN_TAG="<!--auto-import-begin-->";
-	private static final String IMPORT_END_TAG="<!--auto-import-end-->";
+	private static final String IMPORT_BEGIN_TAG="<!--children-js-begin-->";
+	private static final String IMPORT_END_TAG="<!--children-js-end-->";
+	
+	private static final String IMPORT_RECEPT_ROUTER_BEGIN_TAG="<!--recept-router-begin-->";
+	private static final String IMPORT_RECEPT_ROUTER_END_TAG="<!--recept-router-end-->";
+	
+	
 	private static final String HEAD_END_TAG="</head>";
 	
 	private static final  String RECEPT_ROUTER_JS_SUBFFIX= "recept-router.js";
@@ -121,9 +128,31 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 
 	private void importJs4Html(Html html)
 	{
-		String path = html.path;
-		
 		html.checkAndUpdateReceptAndRouter();
+
+		List<String> children = new ArrayList<String>();
+		addChildrenJs(html, children);
+		importJs(html, IMPORT_BEGIN_TAG,IMPORT_END_TAG, children);
+		
+		List<String> receptorAndRouterJs = new ArrayList<String>();
+		getImportReceptAndRouterRefJs(html, receptorAndRouterJs);
+		if(html.isAnyReceptAndRouterExist())
+		{
+			receptorAndRouterJs.add(getReceptAndRouterJsName(html, RECEPT_ROUTER_JS_SUBFFIX));
+		}
+		importJs(html, IMPORT_RECEPT_ROUTER_BEGIN_TAG,IMPORT_RECEPT_ROUTER_END_TAG, receptorAndRouterJs);
+	}
+	
+	private String getReceptAndRouterJsName(Html html, String subffix)
+	{
+		int index = html.name.lastIndexOf(".");
+		String name = index < 0 ? html.name : html.name.substring(0, index);
+		return name + "-" + subffix;
+	}
+	
+	private void importJs(Html html, String tagBegin, String tagEnd, List<String> paths)
+	{
+		String path = html.path;
 		boolean inImportRegin = false;
 		boolean foundImportRegion=false;
 		StringBuffer sb = new StringBuffer();
@@ -134,18 +163,16 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 			String line = reader.readLine();
 			while(line != null)
 			{
-				if(line.trim().startsWith(IMPORT_BEGIN_TAG))
+				if(line.trim().startsWith(tagBegin))
 				{
 					inImportRegin = true;
 					foundImportRegion = true;
 					sb.append(line);
 					sb.append("\r\n");
 					// import 
-					importReceptorAndRouterJs(sb, html,RECEPT_ROUTER_JS_SUBFFIX);
-					importChildren(sb,html);
-		
+					addJsTags(sb, html,paths);
 				}
-				else if(line.trim().startsWith(IMPORT_END_TAG))
+				else if(line.trim().startsWith(tagEnd))
 				{
 					inImportRegin = false;
 					sb.append(line);
@@ -155,12 +182,11 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 				{
 					if(!foundImportRegion)
 					{
-						sb.append(IMPORT_BEGIN_TAG);
+						sb.append(tagBegin);
 						sb.append("\r\n");
 						// import 
-						importReceptorAndRouterJs(sb, html,RECEPT_ROUTER_JS_SUBFFIX);
-						importChildren(sb,html);
-						sb.append(IMPORT_END_TAG);
+						addJsTags(sb, html,paths);
+						sb.append(tagEnd);
 						sb.append("\r\n");
 					}
 					sb.append(line);
@@ -189,123 +215,15 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 		}
 	}
 	
-	private void addReceptorAndRouterJsToHtml(Html html, String subffix)
+	private void addJsTags(StringBuffer sb, Html html, List<String> paths)
 	{
-		String path = html.path;
-		String jsName = getReceptAndRouterJsName(html, subffix);
-		boolean jsInHtml = false;
-
-		//parse html
-		DocumentBuilderFactory fac= DocumentBuilderFactory.newInstance();
-		//用上面的工厂创建一个文档解析器
-        DocumentBuilder builder;
-        
-		try {
-			builder = fac.newDocumentBuilder();
-			Document doc=builder.parse(path);
-			
-			NodeList scripts = doc.getElementsByTagName("script");
-			int length = scripts.getLength();
-			for(int i = 0; i < length; i++)
-			{
-				Element node = (Element) scripts.item(i);
-				if(node.hasAttribute("src"))
-				{
-					String name = node.getAttribute("src");
-					if(name.endsWith(jsName))
-					{
-						jsInHtml = true;
-						break;
-					}
-				}
-			}
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		if(jsInHtml)
+		for(String path : paths)
 		{
-			return;
-		}
-		
-		boolean inImportRegin = false;
-		boolean foundImportRegion=false;
-		StringBuffer sb = new StringBuffer();
-		//import js
-		try {
-
-			BufferedReader reader = new BufferedReader(new FileReader(path));
-			String line = reader.readLine();
-			while(line != null)
-			{
-				if(line.trim().startsWith(IMPORT_BEGIN_TAG))
-				{
-					inImportRegin = true;
-					foundImportRegion = true;
-					sb.append(line);
-					sb.append("\r\n");
-					// import 
-					importReceptorAndRouterJs(sb, html,subffix);
-				}
-				else if(line.trim().startsWith(IMPORT_END_TAG))
-				{
-					inImportRegin = false;
-					sb.append(line);
-					sb.append("\r\n");
-				}
-				else if(line.trim().toLowerCase().startsWith(HEAD_END_TAG))
-				{
-					if(!foundImportRegion)
-					{
-						sb.append(IMPORT_BEGIN_TAG);
-						sb.append("\r\n");
-						// import 
-						importReceptorAndRouterJs(sb, html, subffix);
-						sb.append(IMPORT_END_TAG);
-						sb.append("\r\n");
-					}
-					sb.append(line);
-					sb.append("\r\n");
-				}
-				else
-				{
-					sb.append(line);
-					sb.append("\r\n");
-				}
-				line = reader.readLine();
-			}
-			reader.close();
-		} catch (Exception e) {
-			e.printStackTrace();
-		}
-		
-		try {
-			PrintWriter writer = new PrintWriter(new File(path));
-			writer.write(sb.toString());
-			writer.flush();
-			writer.close();
-		} catch (Exception e) {
-			
-			e.printStackTrace();
+			sb.append("	<script src='" + path + "'></script>\r\n");	
 		}
 	}
 	
-	private String getReceptAndRouterJsName(Html html, String subffix)
-	{
-		int index = html.name.lastIndexOf(".");
-		String name = index < 0 ? html.name : html.name.substring(0, index);
-		return name + "-" + subffix;
-	}
-	
-	private void importReceptorAndRouterJs(StringBuffer sb, Html html, String subffix)
-	{
-		if(html.receptorPath != null || html.routerPath != null)
-		{
-			String name = getReceptAndRouterJsName(html, subffix);
-			sb.append("	<script src='" + name + "'></script>\r\n");
-		}
-	}
-	
-	private void importChildren(StringBuffer sb, Html html)
+	private void addChildrenJs(Html html,List<String> jss)
 	{
 		List<Html> children  = html.children;
 		if(children == null)
@@ -314,14 +232,14 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 		}
 		for(Html child : children)
 		{
-			importChildren(sb, child);
+			addChildrenJs(child,jss);
 			
 			List<String> scripts = child.scripts;
 			for(String item : scripts)
 			{
-				sb.append("	<script src='" + item + "'></script>\r\n");
+				jss.add(item);
 			}
-			sb.append("	<script src='" + child.name + ".js'></script>\r\n");
+			jss.add(child.name + ".js");
 		}
 	}
 	
@@ -462,14 +380,109 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 			{
 				return;
 			}
-			//存在 import js
-			addReceptorAndRouterJsToHtml(html, RECEPT_ROUTER_JS_SUBFFIX);
+			//更新receptor-router.js
 			generateReceptorRouterjs(html,RECEPT_ROUTER_JS_SUBFFIX);
+			//引用js
+			List<String> receptorJss = new ArrayList<String>();
+			getImportReceptAndRouterRefJs(html, receptorJss);
+			receptorJss.add(getReceptAndRouterJsName(html, RECEPT_ROUTER_JS_SUBFFIX));
+			//导入
+			importJs(html, IMPORT_RECEPT_ROUTER_BEGIN_TAG,IMPORT_RECEPT_ROUTER_END_TAG, receptorJss);
 			return;
 		}
 		//更新receptor-router.js
 		generateReceptorRouterjs(html,RECEPT_ROUTER_JS_SUBFFIX);
+		//引用js
+		List<String> jsList = new ArrayList<String>();
+		getImportReceptAndRouterRefJs(html, jsList);
+		jsList.add(getReceptAndRouterJsName(html, RECEPT_ROUTER_JS_SUBFFIX));
+		//导入
+		importJs(html, IMPORT_RECEPT_ROUTER_BEGIN_TAG,IMPORT_RECEPT_ROUTER_END_TAG, jsList);
 	}
+	
+	private void getImportReceptAndRouterRefJs(Html html, List<String> jsList)
+	{
+		if(!html.isAnyReceptAndRouterExist())
+		{
+			return;
+		}
+		StringBuffer sb = new StringBuffer();
+		if(html.receptorPath != null)
+		{
+			read(html.receptorPath, sb);
+			getImportReceptRefJs(sb.toString(), jsList);
+		}
+	}
+	
+	private void getImportReceptRefJs(String receptor, List<String> jsList)
+	{
+		Pattern pattern = Pattern.compile("[^\\{\\}]+\\{[^\\{\\}]+\\}");
+		Matcher matcher = pattern.matcher(receptor);
+		while (matcher.find()) {
+		    String res = matcher.group();
+		    getImportReceptGroupRefJs(res, jsList);
+		}
+	}
+	
+	private void getImportReceptGroupRefJs(String group, List<String> jsList)
+	{
+		int index = group.indexOf("{");
+		int endIndex = group.lastIndexOf("}");
+		String groupInner = group.substring(index+1, endIndex).trim();
+		List<String> items = considerGroupSplit(groupInner, ',');
+		for(String item : items)
+		{
+			int k = item.lastIndexOf(":");
+			if(k <= 0)
+			{
+				continue;
+			}
+			String conditions = item.substring(0, k);
+			getImportReceptConditionsRefJs(conditions, jsList);
+		}
+	}
+	
+	private void getImportReceptConditionsRefJs(String conditions, List<String> jsList)
+	{
+		Pattern pattern = Pattern.compile("\\w+");
+		Matcher matcher = pattern.matcher(conditions);
+		List<String> words = new ArrayList<String>();
+		while (matcher.find()) {
+		    String res = matcher.group();
+		    words.add(res);
+		}
+		
+		Pattern pattern1 = Pattern.compile("['\"]\\w+['\"]");
+		Matcher matcher1 = pattern1.matcher(conditions);
+		List<String> values = new ArrayList<String>();
+		while (matcher1.find()) {
+		    String res = matcher1.group();
+		    values.add(res.substring(1,res.length()-1));
+		}
+		words.removeAll(values);
+		int count = words.size();
+		while(--count >= 0)
+		{
+			try
+			{
+				double number  = Double.parseDouble(words.get(count));
+				if(!Double.isNaN(number))
+				{
+					words.remove(count);
+				}
+			}
+			catch(Exception ex)
+			{
+				
+			}	
+		}
+		//get all states
+		for(String state : words)
+		{
+			jsList.add("../js/" + state + "_state.js");
+		}
+	}
+	
 	
 	private void generateReceptorRouterjs(Html html, String subffix)
 	{
@@ -653,6 +666,46 @@ public class HtmlJsAutoImporterImpl implements IHtmlJsAutoImporter {
 		}
 		return result;
 	}
+ 	
+ 	//在group外面，使用split
+ 	List<String> considerGroupSplit(String value, char seperator)
+ 	{
+ 		int length  = value.length();
+ 		int groupCount = 0;
+ 		int indexLast = 0;
+ 		List<String> result = new ArrayList<String>();
+ 		for(int i = 0; i < length; i++)
+ 		{
+ 			char charOne = value.charAt(i);
+ 			switch(charOne)
+ 			{
+ 				case '{':
+ 				case '(':
+ 					groupCount++;
+ 					break;
+ 				case '}':
+ 				case ')':
+ 					groupCount--;
+ 					break;
+ 				default:
+ 					if(charOne != seperator)
+ 					{
+ 						break;
+ 					}
+ 					if(groupCount == 0)
+ 					{
+ 						result.add(value.substring(indexLast, i));
+ 						indexLast = i+1;
+ 					}
+ 					break;
+ 			}
+ 		}
+ 		if(length > indexLast)
+ 		{
+ 				result.add(value.substring(indexLast, length));
+ 		}
+ 		return result;
+ 	}
 	
 	
 	private static class Html

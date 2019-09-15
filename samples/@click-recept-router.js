@@ -1,7 +1,7 @@
 var reflex$click_recept=`
-bt
+#bt
 {
-  click
+  (click):click
 }
 
 `

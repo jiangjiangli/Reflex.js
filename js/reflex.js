@@ -1,34 +1,61 @@
-﻿class InputStateChangeListener extends Object
+//reflex感受器
+class Reflex$Receptor extends Object
 {
-	
-}
-
-//感受器-状态
-class Reflex$InputStateBase extends Object
-{
-	constructor()
+	constructor(root, name, receptor)
 	{
 		super();
+		this.root  = root;
+		this.name = name.trim();
+		this.receptor = receptor;
+		this.stimulations = [];
+		//得到element
+		this.element = $(this.name);
+		//解析receptor
+		let result = reflex$ConsiderGroupSplit(receptor, ',');
+		for(let item of result)
+		{
+			this.createStimulation(this.element, item);
+		}
 	}
-	
-	connect(element)
+
+	createStimulation(element, value)
 	{
+		let one = new Reflex$Stimulation(this.root, element, value);
+		one.addStimulationListener(this);
+		this.stimulations.push(one);
+	}
+}
+
+class Reflex$Stimulation extends Object
+{
+	constructor(root, element, stimulation)
+	{
+		super();
+		this.root  = root;
 		this.element = element;
+		this.stimulation = stimulation;
+		let index = stimulation.lastIndexOf(":");
+		this.name = stimulation.substring(index+1);
+		let conditions = stimulation.substring(0, index);
+		//获取所有的状态.
+		var reg = /(\w+)/g;
+		var states =conditions.match(reg);
+		reg = /(['"]\w+['"])/g;
+	  var values =conditions.match(reg);
+		let length = values.length;
+		for(let i = 0; i < length; i++)
+		{
+			let item = values[i];
+			values[i] =item.substring(1, item.length -1);
+		}
+		states = states.filter(function(item) { return !reflex$ArrayContains(values,item ) && Number.isNaN(parseFloat(item)); });
+		//get state objects
 	}
-	
-	disConnect()
-	{
-		this.element = undefined;
-	}
-	
-	addInputStateChangeListener(listener)
+
+
+	addStimulationListener(listener)
 	{
 		this.listener = listener;
-	}
-	
-	fireStateChanged(value)
-	{
-		
 	}
 }
 //用来加载html
@@ -208,6 +235,54 @@ function reflex$CreateRouter(router)
 	reflex$ConstructingContext.createRouter(router);
 }
 
+//在group外面，使用split
+function reflex$ConsiderGroupSplit(value, seperator)
+{
+	let length  = value.length;
+	let groupCount = 0;
+	let indexLast = 0;
+	let result = new Array();
+	for(let i = 0; i < length; i++)
+	{
+		let charOne = value.charAt(i);
+		switch(charOne)
+		{
+			case '{':
+			case '(':
+				groupCount++;
+				break;
+			case '}':
+			case ')':
+				groupCount--;
+				break;
+			case seperator:
+				if(groupCount == 0)
+				{
+					result.push(value.substring(indexLast, i));
+					indexLast = i+1;
+				}
+				break;
+			default:
+				break;
+		}
+	}
+	if(length > indexLast)
+	{
+			result.push(value.substring(indexLast, length));
+	}
+	return result;
+}
+
+function reflex$ArrayContains(arr, value)
+{
+    var i = arr.length;
+    while (i--) {
+        if (arr[i] === value) {
+            return true;
+        }
+    }
+    return false;
+}
 
 //输出log,带有时间
 function reflex$Log(msg)
@@ -733,20 +808,36 @@ class Reflex$BindingContext extends Object
 //reflex交互环境
 class Reflex$InteractiveContext extends Object
 {
-  constructor()
+  constructor(element)
   {
     super();
+    this.element = element;
   }
 
-  createBinding(element, includeSelf)
+//如果没指定pageName,则根据meta设定
+  init(bidingSelf, pageName)
   {
-    this.bindingContext = new Reflex$BindingContext(element, includeSelf);
+    this.createBinding(bidingSelf);
+    if(!pageName || pageName.trim().length() <= 0)
+    {
+      pageName  = this.getPageName();
+    }
+    if(!pageName)
+    {
+      return;
+    }
+    this.interactivePage(pageName);
   }
 
-  //获取page name
-  interactive(element)
+  createBinding(includeSelf)
   {
-    let metas = element.getElementsByTagName("meta");
+    this.bindingContext = new Reflex$BindingContext(this.element, includeSelf);
+  }
+
+  //获取page name,添加recept和router，使之可交互
+  getPageName()
+  {
+    let metas = this.element.getElementsByTagName("meta");
     let length = metas.length;
     for (var i = 0; i < length; i++)
     {
@@ -757,10 +848,10 @@ class Reflex$InteractiveContext extends Object
       var pageName = metas[i].getAttribute("content");
       if(pageName)
       {
-        this.interactivePage(pageName);
-        break;
+        return pageName;
       }
     }
+    return "";
   }
 
 //根据page name获取recpet, router定义
@@ -783,7 +874,35 @@ class Reflex$InteractiveContext extends Object
   //创建感受器
   createReceptor(str)
   {
+    var reg = /([^\{\}]+\{[^\{\}]+\})/g;
+    var myArray =str.match(reg);
+    for(let item of myArray)
+    {
+      this.createOneReceptor(item);
+    }
+  }
 
+  createOneReceptor(item)
+  {
+     item = item.trim();
+     let index = item.indexOf("{");
+     if(index <= 0)
+     {
+       return;
+     }
+  	let name = item.substring(0, index);
+    let define = item.substring(index+1);
+    index = define.lastIndexOf("}");
+    if(index > 0)
+    {
+      define = define.substring(0, index);
+    }
+    define = define.trim();
+    let names = name.split(",");
+    for(let idName of names)
+    {
+      let receptor = new Reflex$Receptor(this.element, idName, define);
+    }
   }
 
   //创建router
@@ -796,9 +915,7 @@ class Reflex$InteractiveContext extends Object
 
 //本页面已经加载的js
 var reflex$jsloaded = ["reflex.js"];
-//当前正在构建的context
-var context = new Reflex$InteractiveContext();
-reflex$SetConstructingContext(context);
+
 
 reflex$recordJsLoaded();
 reflex$Log("reflex begin to run");
@@ -807,6 +924,8 @@ document.addEventListener("DOMContentLoaded", function(event)
 {
   reflex$Log("document loaded");
   reflex$recordJsLoaded();
-  context.createBinding(document.documentElement,true);
-  context.interactive(document.documentElement);
+  //当前正在构建的context
+  var context = new Reflex$InteractiveContext(document.documentElement);
+  reflex$SetConstructingContext(context);
+  context.init(true, "");
 });

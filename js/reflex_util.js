@@ -83,6 +83,54 @@ function reflex$CreateRouter(router)
 	reflex$ConstructingContext.createRouter(router);
 }
 
+//在group外面，使用split
+function reflex$ConsiderGroupSplit(value, seperator)
+{
+	let length  = value.length;
+	let groupCount = 0;
+	let indexLast = 0;
+	let result = new Array();
+	for(let i = 0; i < length; i++)
+	{
+		let charOne = value.charAt(i);
+		switch(charOne)
+		{
+			case '{':
+			case '(':
+				groupCount++;
+				break;
+			case '}':
+			case ')':
+				groupCount--;
+				break;
+			case seperator:
+				if(groupCount == 0)
+				{
+					result.push(value.substring(indexLast, i));
+					indexLast = i+1;
+				}
+				break;
+			default:
+				break;
+		}
+	}
+	if(length > indexLast)
+	{
+			result.push(value.substring(indexLast, length));
+	}
+	return result;
+}
+
+function reflex$ArrayContains(arr, value)
+{
+    var i = arr.length;
+    while (i--) {
+        if (arr[i] === value) {
+            return true;
+        }
+    }
+    return false;
+}
 
 //输出log,带有时间
 function reflex$Log(msg)
